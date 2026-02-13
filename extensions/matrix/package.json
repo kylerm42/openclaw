@@ -8,6 +8,7 @@
     "@vector-im/matrix-bot-sdk": "0.8.0-element.3",
     "markdown-it": "14.1.1",
     "music-metadata": "^11.12.0",
+    "proper-lockfile": "^4.1.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {

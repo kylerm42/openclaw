@@ -1,0 +1,59 @@
+{
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "google/gemini-3-pro-preview"
+      },
+      "workspace": "/Users/kyle/.openclaw/workspace",
+      "compaction": {
+        "mode": "safeguard"
+      },
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8
+      }
+    },
+    "list": [
+      {
+        "id": "main"
+      }
+    ]
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "auth": {
+      "mode": "token",
+      "token": "0f6690cb10877e274cc02b24d59d108b2a5864d4aa27e2d4"
+    }
+  },
+  "channels": {
+    "matrix": {
+      "enabled": true,
+      "homeserver": "https://aurebesh.krm.dev",
+      "accessToken": "syt_azJzbw_cnXfsHuQdfehyYWtuWfd_2Qileh",
+      "encryption": true,
+      "dm": {
+        "policy": "allowlist",
+        "allowFrom": ["@kyle:aurebesh.krm.dev"]
+      },
+      "rooms": {}
+    }
+  },
+  "bindings": [
+    {
+      "agentId": "main",
+      "match": {
+        "channel": "matrix"
+      }
+    }
+  ],
+  "plugins": {
+    "allow": ["matrix"],
+    "entries": {
+      "matrix": {
+        "enabled": true
+      }
+    }
+  }
+}

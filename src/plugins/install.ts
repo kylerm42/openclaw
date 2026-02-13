@@ -22,6 +22,7 @@ type PackageManifest = {
   name?: string;
   version?: string;
   dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
 } & Partial<Record<typeof MANIFEST_KEY, { extensions?: string[] }>>;
 
 export type InstallPluginResult =
@@ -277,6 +278,27 @@ async function installPluginFromPackageDir(params: {
   const deps = manifest.dependencies ?? {};
   const hasDeps = Object.keys(deps).length > 0;
   if (hasDeps) {
+    // Strip workspace:* protocol from devDependencies to avoid npm EUNSUPPORTEDPROTOCOL errors
+    // when installing outside the pnpm workspace context
+    const targetManifestPath = path.join(targetDir, "package.json");
+    const targetManifest = await readJsonFile<PackageManifest>(targetManifestPath);
+    let needsRewrite = false;
+    if (targetManifest.devDependencies) {
+      const devDeps = targetManifest.devDependencies;
+      for (const [key, value] of Object.entries(devDeps)) {
+        if (typeof value === "string" && value.startsWith("workspace:")) {
+          delete devDeps[key];
+          needsRewrite = true;
+        }
+      }
+      if (Object.keys(devDeps).length === 0) {
+        delete targetManifest.devDependencies;
+      }
+    }
+    if (needsRewrite) {
+      await fs.writeFile(targetManifestPath, JSON.stringify(targetManifest, null, 2) + "\n");
+    }
+
     logger.info?.("Installing plugin dependencies…");
     const npmRes = await runCommandWithTimeout(
       ["npm", "install", "--omit=dev", "--silent", "--ignore-scripts"],

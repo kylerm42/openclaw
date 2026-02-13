@@ -200,6 +200,14 @@ const entries: SubCliEntry[] = [
     },
   },
   {
+    name: "matrix",
+    description: "Matrix-specific operations",
+    register: async (program) => {
+      const mod = await import("../matrix-cli.js");
+      mod.registerMatrixCli(program);
+    },
+  },
+  {
     name: "directory",
     description: "Directory commands",
     register: async (program) => {

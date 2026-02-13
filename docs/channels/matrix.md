@@ -132,9 +132,78 @@ If the access token (device) changes, a new store is created and the bot must be
 re-verified for encrypted rooms.
 
 **Device verification:**
-When E2EE is enabled, the bot will request verification from your other sessions on startup.
-Open Element (or another client) and approve the verification request to establish trust.
-Once verified, the bot can decrypt messages in encrypted rooms.
+
+When E2EE is enabled, the bot initiates device verification on startup to establish trust with your Matrix account. This verification eliminates "Encrypted by a device not verified by its owner" warnings in Element and other Matrix clients.
+
+**Verification Workflow:**
+
+1. **Enable E2EE and start gateway:**
+
+   ```bash
+   openclaw config set channels.matrix.encryption true
+   openclaw gateway restart
+   ```
+
+2. **Check Element for verification notification:**
+   The bot sends a verification request to your other devices. Look for "New login needs verification" in Element.
+
+3. **Start verification in Element:**
+   Click "Verify" when the notification appears. Element will display 7 emoji.
+
+4. **Compare emoji:**
+   OpenClaw displays the same 7 emoji prominently in the gateway logs with an ASCII box. Compare them carefully with what Element shows.
+
+   **SECURITY WARNING:** If the emoji do NOT match, this indicates a potential man-in-the-middle attack or implementation bug. DO NOT confirm verification. Cancel immediately and investigate.
+
+   **Security Note:** Phase 1 validates encryption keys only (Curve25519). Signing key
+   validation (Ed25519) will be added in Phase 2. This does not affect message encryption
+   security but may allow message forgery in theoretical MITM scenarios.
+
+5. **Confirm verification:**
+   If emoji match, run:
+
+   ```bash
+   openclaw matrix verify confirm
+   ```
+
+6. **Verification complete:**
+   Element will show the device as verified (green checkmark). The bot can now fully participate in encrypted rooms without warnings.
+
+**CLI Commands:**
+
+- **Check verification status:**
+
+  ```bash
+  openclaw matrix verify status
+  ```
+
+  Shows device ID, verification state (verified/unverified/pending), active verification session details, emoji (if ready), and expiry time.
+
+- **Confirm emoji match:**
+
+  ```bash
+  openclaw matrix verify confirm
+  ```
+
+  Completes verification after confirming emoji match in Element.
+
+- **Cancel verification:**
+  ```bash
+  openclaw matrix verify cancel
+  ```
+  Cancels an active verification session (use if emoji mismatch or timeout).
+
+**Workaround if verification notification missed:**
+
+Verification requests expire after 10 minutes. If you miss the notification in Element:
+
+1. Restart the gateway to trigger a new verification request:
+   ```bash
+   openclaw gateway restart
+   ```
+2. Check Element for the new notification and complete the verification flow.
+
+**Note:** The current implementation supports bot-initiated verification only. Element-initiated verification (verify on-demand from Element without restarting the gateway) will be added in a future update.
 
 ## Routing model
 
@@ -225,6 +294,33 @@ Common failures:
 - Logged in but room messages ignored: room blocked by `groupPolicy` or room allowlist.
 - DMs ignored: sender pending approval when `channels.matrix.dm.policy="pairing"`.
 - Encrypted rooms fail: crypto support or encryption settings mismatch.
+
+**Device Verification Issues:**
+
+- **Verification request expired (10 minutes):**
+  Restart the gateway to trigger a new verification request:
+
+  ```bash
+  openclaw gateway restart
+  ```
+
+- **Emoji mismatch between Element and OpenClaw:**
+  This indicates a potential man-in-the-middle attack or implementation bug. DO NOT confirm verification. Cancel the session and investigate:
+
+  ```bash
+  openclaw matrix verify cancel
+  ```
+
+- **"No active verification session" error:**
+  Restart the gateway to trigger a new verification request. The bot only sends verification requests on startup when E2EE is enabled.
+
+- **"Command not found" or "Matrix verification not available":**
+  Ensure the gateway is running and Matrix encryption is enabled:
+  ```bash
+  openclaw config set channels.matrix.encryption true
+  openclaw gateway restart
+  openclaw matrix verify status
+  ```
 
 For triage flow: [/channels/troubleshooting](/channels/troubleshooting).
 

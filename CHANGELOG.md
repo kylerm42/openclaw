@@ -6,6 +6,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Matrix: add device verification support (bot-initiated, SAS emoji). Fixes "Encrypted by a device not verified by its owner" warnings in Element and other Matrix clients. Includes CLI commands `openclaw matrix verify status/confirm/cancel` for interactive verification workflow. (#9892) Element-initiated verification (verify on-demand without gateway restart) coming in Phase 2.
 - CLI: add `openclaw logs --local-time` to display log timestamps in local timezone. (#13818) Thanks @xialonglee.
 - Telegram: render blockquotes as native `<blockquote>` tags instead of stripping them. (#14608)
 - Discord: add role-based allowlists and role-based agent routing. (#10650) Thanks @Minidoracat.

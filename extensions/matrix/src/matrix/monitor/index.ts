@@ -303,27 +303,86 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
   // @vector-im/matrix-bot-sdk client is already started via resolveSharedMatrixClient
   logger.info(`matrix: logged in as ${auth.userId}`);
 
-  // If E2EE is enabled, trigger device verification
+  // Initialize device verification handler (Phase 2)
+  let verificationHandler: import("../verification/handler.js").VerificationHandler | null = null;
   if (auth.encryption && client.crypto) {
     try {
-      // Request verification from other sessions
-      const verificationRequest = await (
-        client.crypto as { requestOwnUserVerification?: () => Promise<unknown> }
-      ).requestOwnUserVerification?.();
-      if (verificationRequest) {
-        logger.info("matrix: device verification requested - please verify in another client");
+      const { VerificationHandler } = await import("../verification/handler.js");
+      const { registerVerificationHandler, unregisterVerificationHandler } =
+        await import("../verification/registry.js");
+      const { resolveMatrixStoragePaths } = await import("../client/storage.js");
+      const deviceId = client.crypto.clientDeviceId;
+
+      // Get storage paths for persistence
+      const storagePaths = resolveMatrixStoragePaths({
+        homeserver: auth.homeserver,
+        userId: auth.userId,
+        accessToken: auth.accessToken,
+        accountId: opts.accountId,
+      });
+
+      verificationHandler = new VerificationHandler({
+        client,
+        userId: auth.userId,
+        deviceId,
+        logger,
+        storageDir: storagePaths.cryptoPath,
+      });
+
+      // Hook into sync responses to capture to-device verification events
+      const originalProcessSync = (client as any).processSync;
+      if (originalProcessSync) {
+        (client as any).processSync = async function (this: any, raw: any, emitFn?: any) {
+          // Extract to-device events before SDK processes them
+          if (raw?.to_device?.events) {
+            for (const event of raw.to_device.events) {
+              const eventType = event.type;
+              const sender = event.sender;
+              const content = event.content;
+
+              // Route verification events to handler
+              if (eventType?.startsWith("m.key.verification.")) {
+                const fromDevice = content?.from_device || sender;
+                logVerboseMessage(
+                  `matrix: to-device verification event type=${eventType} from=${fromDevice}`,
+                );
+                await verificationHandler?.handleToDeviceEvent(eventType, content, fromDevice);
+              }
+            }
+          }
+
+          // Call original processSync
+          return originalProcessSync.call(this, raw, emitFn);
+        };
       }
+
+      // Register handler for CLI access
+      registerVerificationHandler(opts.accountId ?? "default", verificationHandler);
+
+      // Start handler (initialize store and cleanup interval)
+      await verificationHandler.start();
+
+      // Send verification request on startup
+      await verificationHandler.sendVerificationRequest();
+      logger.info("matrix: device verification requested - please check Element to accept");
     } catch (err) {
-      logger.debug?.("Device verification request failed (may already be verified)", {
+      logger.warn("matrix: failed to initialize device verification", {
         error: String(err),
       });
     }
   }
 
   await new Promise<void>((resolve) => {
-    const onAbort = () => {
+    const onAbort = async () => {
       try {
         logVerboseMessage("matrix: stopping client");
+        if (verificationHandler) {
+          verificationHandler.stop();
+          // Unregister from global registry
+          const { unregisterVerificationHandler } = await import("../verification/registry.js");
+          unregisterVerificationHandler(opts.accountId ?? "default");
+          verificationHandler = null;
+        }
         stopSharedClient();
       } finally {
         setActiveMatrixClient(null);
